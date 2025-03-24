@@ -9,8 +9,9 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@tailwindcss/postcss": "^4.0.10",
+    "@tailwindcss/postcss": "^4.0.14",
     "autoprefixer": "^10.4.20",
+    "bootstrap": "^5.3.3",
     "canvas": "^3.1.0",
     "html-to-image": "^1.11.11",
     "konva": "^9.3.18",
@@ -19,14 +20,17 @@
     "pdf-lib": "^1.17.1",
     "postcss": "^8.5.3",
     "react": "^19.0.0",
+    "react-color": "^2.19.3",
     "react-dom": "^19.0.0",
     "react-konva": "^19.0.3",
-    "tailwindcss": "^4.0.10"
+    "tailwindcss": "^4.0.14"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@types/bootstrap": "^5.2.10",
     "@types/node": "^20",
     "@types/react": "^19",
+    "@types/react-color": "^3.0.13",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "15.1.6",
