@@ -11,6 +11,7 @@ import {
 import Konva from "konva";
 import "bootstrap";
 import "bootstrap/dist/css/bootstrap.min.css";
+import { useSearchParams } from "next/navigation";
 
 interface TextObject {
   id: number;
@@ -30,15 +31,18 @@ interface ImageObject {
   width: number;
   height: number;
   rotation: number;
+  scaleX: number;
+  scaleY: number;
   ref: React.RefObject<Konva.Image | null>;
 }
-
 interface SelectedObject {
   type: "text" | "image";
   id: number;
 }
 
 const CardGenerator: React.FC = () => {
+  const searchParams = useSearchParams();
+  const templateId = searchParams.get('templateId');
   const [activeTab, setActiveTab] = useState<"background" | "text" | "image">(
     "background"
   );
@@ -60,31 +64,33 @@ const CardGenerator: React.FC = () => {
   const accordionRef = useRef<HTMLDivElement>(null);
   const dbRef = useRef<IDBDatabase | null>(null);
 
-  // Add event listeners for accordion collapse
-
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const stage = stageRef.current;
       const accordion = accordionRef.current;
       if (!stage || !selectedObject) return;
-
+  
       const container = stage.container();
-      const target = event.target as Node;
-
+      const target = event.target as HTMLElement;
+  
+      const isImageTab = activeTab === "image";
+      const isActionButton = target.closest('.btn') !== null;
+      const isActionSelect = target.closest('select') !== null
+  
       const isTextTab = activeTab === "text";
-
-      if (
-        container &&
-        !container.contains(target) &&
-        (!isTextTab || (accordion && !accordion.contains(target)))
-      ) {
+      const clickedInsideStage = container?.contains(target);
+      const clickedInsideAccordion = isTextTab && accordion?.contains(target);
+  
+      if (!clickedInsideStage && 
+          !(isTextTab && clickedInsideAccordion) && 
+          !(isImageTab && (isActionButton || isActionSelect))) {
         setSelectedObject(null);
       }
     };
-
+  
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [selectedObject]);
+  }, [selectedObject, activeTab]);
 
   // Background handlers
   const handleCardBgColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -207,6 +213,32 @@ const CardGenerator: React.FC = () => {
     );
   };
 
+  const bringImageForward = (id: number) => {
+    setImages(prevImages => {
+      const index = prevImages.findIndex(img => img.id === id);
+      if (index === -1 || index === prevImages.length - 1) return prevImages;
+
+      const newImages = [...prevImages];
+      const [image] = newImages.splice(index, 1);
+      newImages.push(image);
+      return newImages;
+    });
+  };
+
+  // Improved send backward function
+  const sendImageBackward = (id: number) => {
+    console.log('sendImageBackward')
+    setImages(prevImages => {
+      const index = prevImages.findIndex(img => img.id === id);
+      if (index <= 0) return prevImages;
+
+      const newImages = [...prevImages];
+      const [image] = newImages.splice(index, 1);
+      newImages.splice(index - 1, 0, image);
+      return newImages;
+    });
+  };
+
   const loadImage = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -223,6 +255,8 @@ const CardGenerator: React.FC = () => {
             width: 100,
             height: 100,
             rotation: 0,
+            scaleX: 1,
+            scaleY: 1,
             ref: React.createRef<Konva.Image>(),
           };
           setImages((prev) => [...prev, newImage]);
@@ -232,7 +266,6 @@ const CardGenerator: React.FC = () => {
       reader.readAsDataURL(file);
     }
   };
-
   const handleImageDrag = (
     e: Konva.KonvaEventObject<DragEvent>,
     id: number
@@ -246,34 +279,9 @@ const CardGenerator: React.FC = () => {
     );
   };
 
-  const handleImageClick = (
-    e: Konva.KonvaEventObject<MouseEvent>,
-    id: number
-  ) => {
+  const handleImageClick = (e: Konva.KonvaEventObject<MouseEvent>, id: number) => {
     e.cancelBubble = true;
-    const image = images.find((img) => img.id === id);
-    if (image?.ref.current) {
-      setSelectedObject({ type: "image", id });
-    }
-  };
-
-  const handleImageResize = (e: any, id: number) => {
-    const newWidth = e.target.width();
-    const newHeight = e.target.height();
-    setImages((prevImages) =>
-      prevImages.map((img) =>
-        img.id === id ? { ...img, width: newWidth, height: newHeight } : img
-      )
-    );
-  };
-
-  const handleImageRotation = (e: any, id: number) => {
-    const newRotation = e.target.rotation();
-    setImages((prevImages) =>
-      prevImages.map((img) =>
-        img.id === id ? { ...img, rotation: newRotation } : img
-      )
-    );
+    setSelectedObject({ type: "image", id });
   };
 
   const handleImageDelete = (id: number) => {
@@ -310,9 +318,9 @@ const CardGenerator: React.FC = () => {
       request.onsuccess = (event) => {
         dbRef.current = (event.target as IDBOpenDBRequest).result;
         // Load the template if ID exists
-        const templateId = 1742800729575;
+        // const templateId = 1744034226569;
         if (templateId) {
-          loadTemplate(templateId);
+          loadTemplate(+templateId);
         }
       };
 
@@ -461,7 +469,7 @@ const CardGenerator: React.FC = () => {
           if (templateNameInput) {
             templateNameInput.value = "";
           }
-          
+
           alert(`Template "${templateName}" saved successfully!`);
         };
 
@@ -480,7 +488,7 @@ const CardGenerator: React.FC = () => {
     }
   };
 
-  //todo width height manipulations of image doesnt stored, and bring forward
+
   return (
     <div
       className="d-flex rounded-3 bg-custom h-full"
@@ -491,25 +499,22 @@ const CardGenerator: React.FC = () => {
         {/* Tabs for Background, Text, and Image */}
         <div className="d-flex gap-2 mb-3">
           <button
-            className={`btn flex-grow-1 ${
-              activeTab === "background" ? "btn-custom" : "btn-light"
-            }`}
+            className={`btn flex-grow-1 ${activeTab === "background" ? "btn-custom" : "btn-light"
+              }`}
             onClick={() => setActiveTab("background")}
           >
             Background
           </button>
           <button
-            className={`btn flex-grow-1 ${
-              activeTab === "text" ? "btn-custom" : "btn-light"
-            }`}
+            className={`btn flex-grow-1 ${activeTab === "text" ? "btn-custom" : "btn-light"
+              }`}
             onClick={() => setActiveTab("text")}
           >
             Texts
           </button>
           <button
-            className={`btn flex-grow-1 ${
-              activeTab === "image" ? "btn-custom" : "btn-light"
-            }`}
+            className={`btn flex-grow-1 ${activeTab === "image" ? "btn-custom" : "btn-light"
+              }`}
             onClick={() => setActiveTab("image")}
           >
             Images
@@ -603,9 +608,8 @@ const CardGenerator: React.FC = () => {
                     </h2>
                     <div
                       id={`collapse${text.id}`}
-                      className={`accordion-collapse collapse ${
-                        selectedObject?.id === text.id ? "show" : ""
-                      }`}
+                      className={`accordion-collapse collapse ${selectedObject?.id === text.id ? "show" : ""
+                        }`}
                       aria-labelledby={`heading${text.id}`}
                       data-bs-parent="#textAccordion"
                     >
@@ -690,6 +694,7 @@ const CardGenerator: React.FC = () => {
               <input
                 type="file"
                 className="form-control"
+                // multiple
                 accept="image/*"
                 onChange={loadImage}
               />
@@ -698,7 +703,7 @@ const CardGenerator: React.FC = () => {
               <div>
                 <label className="form-label">Selected Image:</label>
                 <select
-                  className="form-select"
+                  className="form-select mb-3"
                   value={
                     selectedObject?.type === "image"
                       ? selectedObject.id
@@ -717,13 +722,30 @@ const CardGenerator: React.FC = () => {
                     </option>
                   ))}
                 </select>
+
                 {selectedObject?.type === "image" && (
-                  <button
-                    className="btn btn-danger w-100 mt-2"
-                    onClick={() => handleImageDelete(selectedObject.id)}
-                  >
-                    Remove Image
-                  </button>
+                  <div className="d-flex flex-column gap-2">
+                    <div className="d-flex gap-2">
+                      <button
+                        className="btn btn-secondary flex-grow-1"
+                        onClick={() => sendImageBackward(selectedObject.id)}
+                      >
+                        Send Backward
+                      </button>
+                      <button
+                        className="btn btn-secondary flex-grow-1"
+                        onClick={() => bringImageForward(selectedObject.id)}
+                      >
+                        Bring Forward
+                      </button>
+                    </div>
+                    <button
+                      className="btn btn-danger w-100"
+                      onClick={() => handleImageDelete(selectedObject.id)}
+                    >
+                      Remove Image
+                    </button>
+                  </div>
                 )}
               </div>
             )}
@@ -774,20 +796,19 @@ const CardGenerator: React.FC = () => {
                 onBlur={(e: any) => handleTextChange(e, text.id)}
                 stroke={
                   selectedObject?.type === "text" &&
-                  selectedObject.id === text.id
+                    selectedObject.id === text.id
                     ? "#2c3e50"
                     : "transparent"
                 }
                 strokeWidth={
                   selectedObject?.type === "text" &&
-                  selectedObject.id === text.id
+                    selectedObject.id === text.id
                     ? 2
                     : 0
                 }
               />
             ))}
 
-            {/* Images */}
             {images.map((img) => (
               <KonvaImage
                 key={img.id}
@@ -797,35 +818,54 @@ const CardGenerator: React.FC = () => {
                 width={img.width}
                 height={img.height}
                 rotation={img.rotation}
+                scaleX={img.scaleX}
+                scaleY={img.scaleY}
                 draggable
                 onDragEnd={(e) => handleImageDrag(e, img.id)}
                 onClick={(e) => handleImageClick(e, img.id)}
                 ref={img.ref}
+                onTransformEnd={(e) => {
+                  const node = img.ref.current;
+                  if (!node) return;
+
+                  const scaleX = node.scaleX();
+                  const scaleY = node.scaleY();
+
+                  setImages(prevImages =>
+                    prevImages.map(image =>
+                      image.id === img.id
+                        ? {
+                          ...image,
+                          x: node.x(),
+                          y: node.y(),
+                          width: Math.max(5, node.width() * scaleX),
+                          height: Math.max(5, node.height() * scaleY),
+                          rotation: node.rotation(),
+                          scaleX: 1,
+                          scaleY: 1,
+                        }
+                        : image
+                    )
+                  );
+
+                  node.scaleX(1);
+                  node.scaleY(1);
+                }}
               />
             ))}
 
-            {/* Transformer for Selected Image */}
             {selectedObject?.type === "image" && (
               <Transformer
                 nodes={images
-                  .filter(
-                    (img) => img.id === selectedObject.id && img.ref.current
-                  )
-                  .map((img) => img.ref.current!)}
+                  .filter((img) => img.id === selectedObject.id)
+                  .map((img) => img.ref.current!)
+                  .filter(Boolean)}
+                anchorSize={8}
                 boundBoxFunc={(oldBox, newBox) => {
                   if (newBox.width < 10 || newBox.height < 10) {
                     return oldBox;
                   }
                   return newBox;
-                }}
-                onTransformEnd={(e) => {
-                  const node = images.find(
-                    (img) => img.id === selectedObject.id
-                  );
-                  if (node?.ref.current) {
-                    handleImageResize(e, node.id);
-                    handleImageRotation(e, node.id);
-                  }
                 }}
               />
             )}

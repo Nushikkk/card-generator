@@ -41,3 +41,10 @@
   background-repeat: no-repeat;
   background-size: 100% 100vh;
 }
+
+.bg-photo-templates {
+  background-image: url('../images/templates-back.jpeg'); /* Replace with your image path */
+  background-position: top center;
+  background-repeat: no-repeat;
+  background-size: 100% 100vh;
+}
