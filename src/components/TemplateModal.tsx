@@ -32,7 +32,7 @@ const TemplateModal: FC<TemplateModalProps> = ({
           <Form.Label>Template Name:</Form.Label>
           <Form.Control
             type="text"
-            value={templateId ? templateName : ''}
+            value={templateName}
             onChange={(e) => setTemplateName(e.target.value)}
             placeholder="Enter template name"
           />
