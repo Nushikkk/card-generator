@@ -11,7 +11,9 @@ import {
 import Konva from "konva";
 import "bootstrap";
 import "bootstrap/dist/css/bootstrap.min.css";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import TemplateModal from "./TemplateModal";
+
 
 interface TextObject {
   id: number;
@@ -42,7 +44,10 @@ interface SelectedObject {
 
 const CardGenerator: React.FC = () => {
   const searchParams = useSearchParams();
+  const router = useRouter()
   const templateId = searchParams.get('templateId');
+  const [templateName, setTemplateName] = useState('');
+  const [showModal, setShowModal] = useState(false);
   const [activeTab, setActiveTab] = useState<"background" | "text" | "image">(
     "background"
   );
@@ -69,30 +74,29 @@ const CardGenerator: React.FC = () => {
       const stage = stageRef.current;
       const accordion = accordionRef.current;
       if (!stage || !selectedObject) return;
-  
+
       const container = stage.container();
       const target = event.target as HTMLElement;
-  
+
       const isImageTab = activeTab === "image";
       const isActionButton = target.closest('.btn') !== null;
       const isActionSelect = target.closest('select') !== null
-  
+
       const isTextTab = activeTab === "text";
       const clickedInsideStage = container?.contains(target);
       const clickedInsideAccordion = isTextTab && accordion?.contains(target);
-  
-      if (!clickedInsideStage && 
-          !(isTextTab && clickedInsideAccordion) && 
-          !(isImageTab && (isActionButton || isActionSelect))) {
+
+      if (!clickedInsideStage &&
+        !(isTextTab && clickedInsideAccordion) &&
+        !(isImageTab && (isActionButton || isActionSelect))) {
         setSelectedObject(null);
       }
     };
-  
+
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [selectedObject, activeTab]);
 
-  // Background handlers
   const handleCardBgColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setCardBgColor(e.target.value);
   };
@@ -131,7 +135,6 @@ const CardGenerator: React.FC = () => {
     setBackgroundImageOpacity(Number(e.target.value));
   };
 
-  // Text handlers
   const handleTextFontSizeChange = (
     e: React.ChangeEvent<HTMLInputElement>,
     id: number
@@ -225,7 +228,6 @@ const CardGenerator: React.FC = () => {
     });
   };
 
-  // Improved send backward function
   const sendImageBackward = (id: number) => {
     console.log('sendImageBackward')
     setImages(prevImages => {
@@ -289,7 +291,6 @@ const CardGenerator: React.FC = () => {
     setSelectedObject(null);
   };
 
-  // Export and save functions
   const exportAsImage = () => {
     const stage = stageRef.current;
     if (stage) {
@@ -317,8 +318,6 @@ const CardGenerator: React.FC = () => {
 
       request.onsuccess = (event) => {
         dbRef.current = (event.target as IDBOpenDBRequest).result;
-        // Load the template if ID exists
-        // const templateId = 1744034226569;
         if (templateId) {
           loadTemplate(+templateId);
         }
@@ -331,7 +330,6 @@ const CardGenerator: React.FC = () => {
 
     openDB();
 
-    // Cleanup function
     return () => {
       if (dbRef.current) {
         dbRef.current.close();
@@ -339,7 +337,6 @@ const CardGenerator: React.FC = () => {
     };
   }, []);
 
-  // Modified loadTemplate function with proper null checks
   const loadTemplate = async (templateId: number) => {
     if (!dbRef.current) {
       console.error('Database not initialized');
@@ -358,7 +355,6 @@ const CardGenerator: React.FC = () => {
           return;
         }
 
-        // Load background image if exists
         if (template.backgroundImage) {
           const bgImg = new Image();
           bgImg.src = template.backgroundImage;
@@ -391,11 +387,11 @@ const CardGenerator: React.FC = () => {
 
         loadImages();
 
-        // Load other template properties
         setCardBgColor(template.cardBgColor);
         setBorderRadius(template.borderRadius);
         setBackgroundImageOpacity(template.backgroundImageOpacity);
         setTexts(template.texts);
+        setTemplateName(template.name)
       };
 
       request.onerror = (event) => {
@@ -406,7 +402,6 @@ const CardGenerator: React.FC = () => {
     }
   };
 
-  // Modified saveTemplate function with proper null checks
   const saveTemplate = async (templateName: string) => {
     if (!templateName.trim()) {
       setErrorMessage("Please enter a template name.");
@@ -414,79 +409,94 @@ const CardGenerator: React.FC = () => {
     }
 
     if (!dbRef.current) {
-      console.error('Database not initialized');
+      console.error("Database not initialized");
       setErrorMessage("Database not available. Please refresh the page.");
       return;
     }
 
     try {
-      // Count existing templates to enforce limit
-      const countRequest = dbRef.current
-        .transaction(['templates'], 'readonly')
-        .objectStore('templates')
-        .count();
+      const stage = stageRef.current;
+      let thumbnail = "";
 
-      countRequest.onsuccess = (event) => {
-        const count = (event.target as IDBRequest).result;
-        if (count >= 5) {
-          alert(
-            "You have reached the maximum of 5 saved templates. Please delete some before saving new ones."
-          );
-          return;
-        }
+      if (stage) {
+        const originalScale = stage.scaleX();
+        stage.draw();
+        thumbnail = stage.toDataURL({ pixelRatio: 2 });
+        stage.scale({ x: originalScale, y: originalScale });
+        stage.draw();
+      }
 
-        // Create the template object
-        const template = {
-          id: Date.now(), // Unique ID for the template
-          name: templateName,
-          cardBgColor,
-          borderRadius,
-          backgroundImage: backgroundImage ? backgroundImage.src : null,
-          backgroundImageOpacity,
-          texts,
-          images: images.map((img) => ({
-            id: img.id,
-            x: img.x,
-            y: img.y,
-            width: img.width,
-            height: img.height,
-            rotation: img.rotation,
-            src: img.image.src,
-          })),
-        };
+      const template = {
+        id: templateId ? Number(templateId) : Date.now(),
+        name: templateName,
+        cardBgColor,
+        borderRadius,
+        backgroundImage: backgroundImage ? backgroundImage.src : null,
+        backgroundImageOpacity,
+        texts,
+        images: images.map((img) => ({
+          id: img.id,
+          x: img.x,
+          y: img.y,
+          width: img.width,
+          height: img.height,
+          rotation: img.rotation,
+          src: img.image.src,
+        })),
+        thumbnail,
+      };
 
-        // Save to IndexedDB
-        const transaction = dbRef.current!.transaction(['templates'], 'readwrite');
-        const store = transaction.objectStore('templates');
-        const addRequest = store.add(template);
+      if (!templateId) {
+        const countRequest = dbRef.current
+          .transaction(["templates"], "readonly")
+          .objectStore("templates")
+          .count();
 
-        addRequest.onsuccess = () => {
-          console.log(template.id)
-          setErrorMessage("");
-          const templateNameInput = document.getElementById(
-            "templateNameInput"
-          ) as HTMLInputElement;
-          if (templateNameInput) {
-            templateNameInput.value = "";
+        countRequest.onsuccess = (event) => {
+          const count = (event.target as IDBRequest).result;
+          if (count >= 5) {
+            alert("You have reached the maximum of 5 saved templates.");
+            return;
           }
 
-          alert(`Template "${templateName}" saved successfully!`);
+          const store = dbRef.current!.transaction(["templates"], "readwrite").objectStore("templates");
+          const addRequest = store.add(template); // 🆕 New template
+
+          addRequest.onsuccess = () => {
+            setErrorMessage("");
+            alert(`Template "${templateName}" saved successfully!`);
+          };
+
+          addRequest.onerror = (event) => {
+            console.error("Error saving template:", (event.target as IDBRequest).error);
+            alert("Failed to save template. Please try again.");
+          };
+        };
+      } else {
+        const store = dbRef.current!.transaction(["templates"], "readwrite").objectStore("templates");
+        const updateRequest = store.put(template);
+
+        updateRequest.onsuccess = () => {
+          setErrorMessage("");
+          alert(`Template "${templateName}" updated successfully!`);
+          router.push("/templates"); 
         };
 
-        addRequest.onerror = (event) => {
-          console.error('Error saving template:', (event.target as IDBRequest).error);
-          alert('Failed to save template. Please try again.');
+        updateRequest.onerror = (event) => {
+          console.error("Error updating template:", (event.target as IDBRequest).error);
+          alert("Failed to update template. Please try again.");
         };
-      };
-
-      countRequest.onerror = (event) => {
-        console.error('Error counting templates:', (event.target as IDBRequest).error);
-      };
+      }
+      setErrorMessage('');
+      setShowModal(false);
     } catch (error) {
-      console.error('Error accessing database:', error);
+      console.error("Error accessing database:", error);
       setErrorMessage("Error accessing database. Please try again.");
+    } finally {
     }
   };
+
+
 
 
   return (
@@ -877,78 +887,22 @@ const CardGenerator: React.FC = () => {
           </button>
           <button
             className="btn btn-custom mt-3"
-            data-bs-toggle="modal"
-            data-bs-target="#templateNameModal"
+            onClick={() => setShowModal(true)}
           >
-            Save template
+            {templateId ? 'Update template' : 'Save template'}
           </button>
         </div>
       </div>
 
-      {/* Bootstrap Modal for Template Name */}
-      <div
-        className="modal fade"
-        id="templateNameModal"
-        tabIndex={-1}
-        aria-labelledby="templateNameModalLabel"
-        aria-hidden="true"
-      >
-        <div className="modal-dialog">
-          <div className="modal-content">
-            <div className="modal-header">
-              <h5 className="modal-title" id="templateNameModalLabel">
-                Save Template
-              </h5>
-              <button
-                type="button"
-                className="btn-close"
-                data-bs-dismiss="modal"
-                aria-label="Close"
-              ></button>
-            </div>
-            <div className="modal-body">
-              {/* Error Message */}
-              {errorMessage && (
-                <div className="alert alert-danger" role="alert">
-                  {errorMessage}
-                </div>
-              )}
-              <label htmlFor="templateNameInput" className="form-label">
-                Template Name:
-              </label>
-              <input
-                type="text"
-                className="form-control"
-                id="templateNameInput"
-                placeholder="Enter template name"
-              />
-            </div>
-            <div className="modal-footer">
-              <button
-                type="button"
-                className="btn btn-secondary"
-                data-bs-dismiss="modal"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={() => {
-                  const templateName = (
-                    document.getElementById(
-                      "templateNameInput"
-                    ) as HTMLInputElement
-                  ).value;
-                  saveTemplate(templateName);
-                }}
-              >
-                Save
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+      <TemplateModal
+        show={showModal}
+        onHide={() => setShowModal(false)}
+        errorMessage={errorMessage}
+        templateId={templateId}
+        templateName={templateName}
+        setTemplateName={setTemplateName}
+        saveTemplate={saveTemplate}
+      />
     </div>
   );
 };

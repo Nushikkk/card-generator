@@ -1,8 +1,9 @@
-// app/templates/page.tsx
 'use client';
 
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import "bootstrap";
+import "bootstrap/dist/css/bootstrap.min.css";
 
 interface Template {
   id: number;
@@ -13,6 +14,33 @@ interface Template {
 export default function TemplatesPage() {
   const router = useRouter();
   const [templates, setTemplates] = useState<Template[]>([]);
+
+  const handleDeleteTemplate = (id: number) => {
+    const confirmed = window.confirm("Are you sure you want to delete this template?");
+    if (!confirmed) return;
+
+    const request = indexedDB.open('CardTemplatesDB', 1);
+
+    request.onsuccess = (event) => {
+      const db = (event.target as IDBOpenDBRequest).result;
+      const transaction = db.transaction('templates', 'readwrite');
+      const store = transaction.objectStore('templates');
+
+      const deleteRequest = store.delete(id);
+
+      deleteRequest.onsuccess = () => {
+        // Update local state to remove deleted template from UI
+        setTemplates((prevTemplates) => prevTemplates.filter(t => t.id !== id));
+        alert("Template deleted successfully.");
+      };
+
+      deleteRequest.onerror = (event) => {
+        console.error("Error deleting template:", (event.target as IDBRequest).error);
+        alert("Failed to delete template.");
+      };
+    };
+  };
+
 
   useEffect(() => {
     const openDB = () => {
@@ -39,32 +67,38 @@ export default function TemplatesPage() {
 
   return (
     <div className="p-4 bg-photo-templates" style={{ height: '100vh' }}>
-      <h1 className="text-2xl mb-4">Choose a Template</h1>
-      <div className="w-full max-w-7xl mx-auto px-4"> {/* Container with proper width and padding */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      <div className="container py-4">
+        <h1 className="h4 mb-4">Choose a Template</h1>
+        <div className="row g-4">
           {templates.map((template) => (
-            <div
-              key={template.id}
-              className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-300 cursor-pointer"
-              onClick={() => handleTemplateSelect(template.id)}
-            >
-              {/* Image with aspect ratio */}
-              <div className="aspect-video bg-gray-100 overflow-hidden">
-                <img
-                  src={template.thumbnail}
-                  alt={template.name}
-                  className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
-                />
-              </div>
-
-              {/* Card content */}
-              <div className="p-4">
-                <h3 className="font-medium text-gray-900 mb-1">{template.name}</h3>
-                {/* {template.description && (
-                  <p className="text-sm text-gray-500 line-clamp-2">
-                    {template.description}
-                  </p>
-                )} */}
+            <div key={template.id} className="col-12 col-sm-6 col-lg-4 col-xl-3">
+              <div
+                className="card h-100 shadow-sm hover-shadow cursor-pointer"
+                onClick={() => handleTemplateSelect(template.id)}
+                style={{ cursor: 'pointer' }}
+              >
+                <div className="ratio ratio-16x9 bg-light">
+                  <img
+                    src={template.thumbnail}
+                    alt={template.name}
+                    className="card-img-top object-fit-cover"
+                    style={{ transition: 'transform 0.3s' }}
+                    onMouseOver={(e) => (e.currentTarget.style.transform = 'scale(1.05)')}
+                    onMouseOut={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+                  />
+                </div>
+                <div className="card-body d-flex justify-content-between align-items-center">
+                  <h5 className="card-title mb-0">{template.name}</h5>
+                  <button
+                    className="btn btn-sm btn-outline-danger"
+                    onClick={(e) => {
+                      e.stopPropagation(); // Prevent template selection
+                      handleDeleteTemplate(template.id);
+                    }}
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
             </div>
           ))}
