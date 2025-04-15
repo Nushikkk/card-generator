@@ -13,7 +13,7 @@ import "bootstrap";
 import "bootstrap/dist/css/bootstrap.min.css";
 import { useRouter, useSearchParams } from "next/navigation";
 import TemplateModal from "./TemplateModal";
-
+import { jsPDF } from "jspdf";
 
 interface TextObject {
   id: number;
@@ -249,18 +249,33 @@ const CardGenerator: React.FC = () => {
         const img = new Image();
         img.src = event.target?.result as string;
         img.onload = () => {
+          const maxDimension = 200; // Max width or height you want
+          const ratio = img.width / img.height;
+        
+          let displayWidth = maxDimension;
+          let displayHeight = maxDimension;
+        
+          if (ratio > 1) {
+            // Landscape
+            displayHeight = maxDimension / ratio;
+          } else {
+            // Portrait or square
+            displayWidth = maxDimension * ratio;
+          }
+        
           const newImage: ImageObject = {
             id: Date.now(),
             image: img,
             x: 50,
             y: 50,
-            width: 100,
-            height: 100,
+            width: displayWidth,
+            height: displayHeight,
             rotation: 0,
             scaleX: 1,
             scaleY: 1,
             ref: React.createRef<Konva.Image>(),
           };
+        
           setImages((prev) => [...prev, newImage]);
           setSelectedObject({ type: "image", id: newImage.id });
         };
@@ -304,6 +319,27 @@ const CardGenerator: React.FC = () => {
       document.body.removeChild(link);
     }
   };
+
+
+const exportToPDF = () => {
+  if (!stageRef.current) return;
+
+  const stage = stageRef.current;
+  const width = stage.width();
+  const height = stage.height();
+
+  // Export as high-res image
+  const dataURL = stage.toDataURL({ pixelRatio: 2 });
+
+  const pdf = new jsPDF({
+    orientation: width > height ? "landscape" : "portrait",
+    unit: "px",
+    format: [width, height],
+  });
+
+  pdf.addImage(dataURL, "PNG", 0, 0, width, height);
+  pdf.save("canvas-export.pdf");
+};
 
   useEffect(() => {
     const openDB = () => {
@@ -454,13 +490,8 @@ const CardGenerator: React.FC = () => {
 
         countRequest.onsuccess = (event) => {
           const count = (event.target as IDBRequest).result;
-          if (count >= 5) {
-            alert("You have reached the maximum of 5 saved templates.");
-            return;
-          }
-
           const store = dbRef.current!.transaction(["templates"], "readwrite").objectStore("templates");
-          const addRequest = store.add(template); // 🆕 New template
+          const addRequest = store.add(template);
 
           addRequest.onsuccess = () => {
             setErrorMessage("");
@@ -495,9 +526,6 @@ const CardGenerator: React.FC = () => {
     } finally {
     }
   };
-
-
-
 
   return (
     <div
@@ -882,6 +910,9 @@ const CardGenerator: React.FC = () => {
           </Layer>
         </Stage>
         <div className="d-flex align-self-end me-3 gap-3">
+         <button className="btn btn-custom mt-3" onClick={exportToPDF}>
+            Export to PDF
+          </button>
           <button className="btn btn-custom mt-3" onClick={exportAsImage}>
             Export as Image
           </button>
