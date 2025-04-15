@@ -27,7 +27,7 @@ const Navbar = () => {
               <Link className="nav-link text-uppercase fw-bold custom-nav-link" href="/templates">Templates</Link>
             </li>
             <li className="nav-item">
-              <Link className="nav-link text-uppercase fw-bold custom-nav-link" href="/templates">Contact Us</Link>
+              <Link className="nav-link text-uppercase fw-bold custom-nav-link" href="/contact">Contact Us</Link>
             </li>
           </ul>
         </div>
